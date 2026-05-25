@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         'X-Title': 'PlantDoc'
       },
       body: JSON.stringify({
-        model: 'qwen/qwen2.5-vl-32b-instruct:free',
+        model: 'nvidia/nemotron-nano-12b-v2-vl:free',
         messages: [{ role: 'user', content }],
         max_tokens: 1200,
         temperature: 0.3
