@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         'X-Title': 'PlantDoc'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-exp:free',
+        model: 'qwen/qwen2.5-vl-32b-instruct:free',
         messages: [{ role: 'user', content }],
         max_tokens: 1200,
         temperature: 0.3
