@@ -430,7 +430,7 @@ function PlantDoc() {
     const prompt = `Ти — ботанічний експерт і фітопатолог. ${plantName ? `Рослина: ${plantName}.` : 'Визнач вид рослини.'}
 ${imageBase64 ? 'Уважно проаналізуй фото.' : 'Надай загальні рекомендації.'}
 
-Відповідай ТІЛЬКИ валідним JSON (без коментарів, без markdown):
+Відповідай ТІЛЬКИ валідним JSON без markdown та коментарів:
 {
   "name": "Назва рослини українською",
   "latin": "Латинська назва",
@@ -445,30 +445,18 @@ ${imageBase64 ? 'Уважно проаналізуй фото.' : 'Надай з
     "temp": "Температура",
     "fertilizer": "Підживлення"
   },
-  "urgent": "Найтерміновіша дія або null якщо всe добре",
+  "urgent": "Найтерміновіша дія або null якщо все добре",
   "overall": "good|warning|critical"
 }`
-
-    const messages = [
-      {
-        role: 'user',
-        content: imageBase64
-          ? [
-              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
-              { type: 'text', text: prompt }
-            ]
-          : [{ type: 'text', text: prompt }]
-      }
-    ]
 
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages
+          prompt,
+          imageBase64: imageBase64 || null,
+          imageMimeType: 'image/jpeg'
         })
       })
       const data = await res.json()
@@ -477,8 +465,7 @@ ${imageBase64 ? 'Уважно проаналізуй фото.' : 'Надай з
         setLoading(false)
         return
       }
-      const text = data.content?.find(b => b.type === 'text')?.text || '{}'
-      const clean = text.replace(/```json|```/g, '').trim()
+      const clean = (data.text || '{}').replace(/```json|```/g, '').trim()
       try {
         setResult(JSON.parse(clean))
       } catch {
