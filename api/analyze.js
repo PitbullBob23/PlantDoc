@@ -6,12 +6,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not set in environment variables' })
+    return res.status(500).json({ error: 'OPENROUTER_API_KEY not set in environment variables' })
   }
 
-  // Parse body manually (ESM Vercel quirk)
   let body = req.body
   if (typeof body === 'undefined') {
     try {
@@ -19,39 +18,46 @@ export default async function handler(req, res) {
       for await (const chunk of req) chunks.push(chunk)
       body = JSON.parse(Buffer.concat(chunks).toString())
     } catch (e) {
-      return res.status(400).json({ error: 'Failed to parse request body: ' + e.message })
+      return res.status(400).json({ error: 'Failed to parse body: ' + e.message })
     }
   }
 
   const { prompt, imageBase64, imageMimeType } = body
 
-  // Build Gemini parts
-  const parts = []
+  // Build content — with or without image
+  const content = []
   if (imageBase64) {
-    parts.push({ inlineData: { mimeType: imageMimeType || 'image/jpeg', data: imageBase64 } })
+    content.push({
+      type: 'image_url',
+      image_url: { url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}` }
+    })
   }
-  parts.push({ text: prompt })
+  content.push({ type: 'text', text: prompt })
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 1200 }
-        })
-      }
-    )
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://plantdoc.vercel.app',
+        'X-Title': 'PlantDoc'
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
+        messages: [{ role: 'user', content }],
+        max_tokens: 1200,
+        temperature: 0.3
+      })
+    })
 
     const data = await response.json()
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: `Gemini API error: ${JSON.stringify(data)}` })
+      return res.status(response.status).json({ error: `OpenRouter error: ${JSON.stringify(data)}` })
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+    const text = data.choices?.[0]?.message?.content || '{}'
     return res.status(200).json({ text })
   } catch (err) {
     return res.status(500).json({ error: 'Proxy error: ' + err.message })
