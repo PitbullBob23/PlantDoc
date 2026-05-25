@@ -1,7 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react'
 
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
-
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
 
@@ -464,7 +462,7 @@ ${imageBase64 ? 'Уважно проаналізуй фото.' : 'Надай з
     ]
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -482,8 +480,6 @@ ${imageBase64 ? 'Уважно проаналізуй фото.' : 'Надай з
     }
     setLoading(false)
   }
-
-  const hasApiKey = Boolean(ANTHROPIC_API_KEY)
 
   return (
     <>
@@ -532,12 +528,6 @@ ${imageBase64 ? 'Уважно проаналізуй фото.' : 'Надай з
                 onChange={e => setPlantName(e.target.value)}
               />
             </div>
-
-            {!hasApiKey && (
-              <div className="api-warning" style={{ marginTop: '1rem' }}>
-                ⚠️ Додай VITE_ANTHROPIC_API_KEY у .env файл або налаштування Vercel
-              </div>
-            )}
 
             <button
               className="diagnose-btn"
