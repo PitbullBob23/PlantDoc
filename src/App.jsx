@@ -180,9 +180,18 @@ export default function PlantDoc() {
       })
       const data = await res.json()
       if (!res.ok || data.error) { setError(data.error || 'Помилка сервера'); setLoading(false); return }
-      const clean = (data.text || '{}').replace(/```json|```/g, '').trim()
-      const jsonMatch = clean.match(/\{[\s\S]*\}/)
-      setResult(JSON.parse(jsonMatch ? jsonMatch[0] : clean))
+      const raw = data.text || ''
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        setError('Відповідь моделі: ' + (data.debug || raw.slice(0, 200) || 'порожня відповідь'))
+        setLoading(false)
+        return
+      }
+      try {
+        setResult(JSON.parse(jsonMatch[0]))
+      } catch(pe) {
+        setError('JSON помилка: ' + pe.message + ' | Текст: ' + raw.slice(0, 150))
+      }
     } catch (e) {
       setError('Мережева помилка: ' + e.message)
     }

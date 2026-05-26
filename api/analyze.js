@@ -55,7 +55,14 @@ export default async function handler(req, res) {
     const data = await response.json()
     if (!response.ok) throw new Error(JSON.stringify(data))
 
+    // Return full raw data for debugging
+    return data
+  }
+
+  try {
+    const data = await tryModel(true)
     const message = data.choices?.[0]?.message
+
     let text = ''
     if (message) {
       if (Array.isArray(message.content)) {
@@ -63,51 +70,17 @@ export default async function handler(req, res) {
       } else if (typeof message.content === 'string') {
         text = message.content
       }
-      if (!text.trim() && message.reasoning_content) text = message.reasoning_content
-    }
-    return text
-  }
-
-  // Fix truncated JSON — close any open strings/arrays/objects
-  const fixJson = (str) => {
-    try { JSON.parse(str); return str } catch {}
-    let fixed = str
-    // Count unclosed braces/brackets
-    let openBraces = 0, openBrackets = 0, inString = false, escape = false
-    for (const ch of fixed) {
-      if (escape) { escape = false; continue }
-      if (ch === '\\' && inString) { escape = true; continue }
-      if (ch === '"') { inString = !inString; continue }
-      if (!inString) {
-        if (ch === '{') openBraces++
-        else if (ch === '}') openBraces--
-        else if (ch === '[') openBrackets++
-        else if (ch === ']') openBrackets--
+      if (!text.trim() && message.reasoning_content) {
+        text = message.reasoning_content
       }
     }
-    // Close open string
-    if (inString) fixed += '"'
-    // Close open arrays and objects
-    fixed += ']'.repeat(Math.max(0, openBrackets))
-    fixed += '}'.repeat(Math.max(0, openBraces))
-    try { JSON.parse(fixed); return fixed } catch { return null }
-  }
 
-  try {
-    let text = await tryModel(true)
-    if (!text.trim() && imageBase64) text = await tryModel(false)
-
-    // Extract JSON block
-    const jsonMatch = text.match(/\{[\s\S]*/)
-    let jsonStr = jsonMatch ? jsonMatch[0] : text
-
-    // Try to fix truncated JSON
-    const fixed = fixJson(jsonStr)
-    if (!fixed) {
-      return res.status(200).json({ error: 'Не вдалось розпарсити відповідь. Спробуй ще раз.' })
-    }
-
-    return res.status(200).json({ text: fixed })
+    // Return raw text so frontend can show it for debugging
+    return res.status(200).json({ 
+      text,
+      debug: text.slice(0, 300),
+      finish_reason: data.choices?.[0]?.finish_reason
+    })
   } catch (err) {
     return res.status(500).json({ error: 'Error: ' + err.message })
   }
