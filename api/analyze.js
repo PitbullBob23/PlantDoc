@@ -45,7 +45,7 @@ export default async function handler(req, res) {
         'X-Title': 'PlantDoc'
       },
       body: JSON.stringify({
-        model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+        model: 'google/gemma-3-27b-it:free',
         messages: msgs,
         max_tokens: 2048,
         temperature: 0.1,
