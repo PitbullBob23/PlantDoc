@@ -24,16 +24,17 @@ export default async function handler(req, res) {
 
   const { prompt, imageBase64, imageMimeType } = body
 
-  const content = []
-  if (imageBase64) {
-    content.push({
-      type: 'image_url',
-      image_url: { url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}` }
-    })
-  }
-  content.push({ type: 'text', text: prompt })
+  // Try with image first, fallback to text-only if image fails
+  const tryRequest = async (withImage) => {
+    const content = []
+    if (withImage && imageBase64) {
+      content.push({
+        type: 'image_url',
+        image_url: { url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}` }
+      })
+    }
+    content.push({ type: 'text', text: prompt })
 
-  try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -45,44 +46,47 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         messages: [{ role: 'user', content }],
-        max_tokens: 1200,
-        temperature: 0.3,
-        // Disable reasoning mode so we get clean JSON output
-        extra_body: { enable_thinking: false }
+        max_tokens: 1500,
+        temperature: 0.2,
       })
     })
 
     const data = await response.json()
+    if (!response.ok) throw new Error(JSON.stringify(data))
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `OpenRouter error: ${JSON.stringify(data)}` })
-    }
-
-    // Extract text — handle both reasoning and normal responses
-    let text = ''
     const message = data.choices?.[0]?.message
+    let text = ''
+
     if (message) {
-      // Some models return content as array of blocks
       if (Array.isArray(message.content)) {
+        text = message.content.filter(b => b.type === 'text').map(b => b.text).join('')
+      } else if (typeof message.content === 'string') {
         text = message.content
-          .filter(b => b.type === 'text')
-          .map(b => b.text)
-          .join('')
-      } else {
-        text = message.content || ''
       }
-      // Also check reasoning_content field
-      if (!text && message.reasoning_content) {
+      // Nemotron reasoning models put answer in reasoning_content
+      if (!text.trim() && message.reasoning_content) {
         text = message.reasoning_content
       }
     }
 
-    // Extract JSON from text — find first { ... } block
+    return text
+  }
+
+  try {
+    // First try with image
+    let text = await tryRequest(true)
+
+    // If empty and we had an image, retry text-only
+    if (!text.trim() && imageBase64) {
+      text = await tryRequest(false)
+    }
+
+    // Extract JSON block
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     const clean = jsonMatch ? jsonMatch[0] : text
 
-    return res.status(200).json({ text: clean, raw: text.slice(0, 500) })
+    return res.status(200).json({ text: clean })
   } catch (err) {
-    return res.status(500).json({ error: 'Proxy error: ' + err.message })
+    return res.status(500).json({ error: 'Error: ' + err.message })
   }
 }
