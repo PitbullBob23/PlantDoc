@@ -1,26 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react'
 
-const SYSTEM_PROMPT = `You are an expert botanist and plant care specialist. 
-IMPORTANT: Write ALL text values in Ukrainian language only.
-Use only verified scientific facts. If unsure — say so.
-Analyze photos carefully: leaf color, shape, spots, texture, signs of disease or pests.
-Be specific and practical.
+const SYSTEM_PROMPT = `Ти експерт-ботанік. Відповідай ВИКЛЮЧНО українською мовою. Лише перевірені факти.
 
-Respond ONLY with valid JSON, no markdown, no comments:
-{
-  "plantName": "назва рослини українською",
-  "latinName": "Latin species name",
-  "overallHealth": "Відмінний | Хороший | Задовільний | Поганий | Критичний",
-  "healthScore": number from 0 to 100,
-  "issues": [
-    { "title": "назва проблеми", "description": "опис українською", "severity": "low|medium|high" }
-  ],
-  "careAdvice": [
-    { "category": "Полив | Світло | Ґрунт | Добрива | Температура | Вологість | Пересадка | Шкідники", "advice": "конкретна порада українською" }
-  ],
-  "urgentAction": "термінова дія українською або null",
-  "funFact": "цікавий факт про цю рослину українською"
-}`
+Відповідай ТІЛЬКИ JSON без markdown та пояснень:
+{"plantName":"назва українською","latinName":"латинська назва","overallHealth":"Відмінний або Хороший або Задовільний або Поганий або Критичний","healthScore":75,"issues":[{"title":"назва проблеми","description":"опис","severity":"low або medium або high"}],"careAdvice":[{"category":"Полив","advice":"порада"},{"category":"Світло","advice":"порада"},{"category":"Температура","advice":"порада"},{"category":"Вологість","advice":"порада"}],"urgentAction":"дія або null","funFact":"факт про рослину"}`
 
 const severityColor = { low: '#4caf72', medium: '#e09052', high: '#e05252' }
 const severityLabel = { low: 'Незначна', medium: 'Помірна', high: 'Критична' }
