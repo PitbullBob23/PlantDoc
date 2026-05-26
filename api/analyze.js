@@ -22,21 +22,16 @@ export default async function handler(req, res) {
 
   const { systemPrompt, userMsg, imageBase64, imageMimeType } = body
 
-  const content = []
-  if (imageBase64) {
-    content.push({
-      type: 'image_url',
-      image_url: { url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}` }
-    })
-  }
-  content.push({ type: 'text', text: userMsg })
-
-  const messages = []
-  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt })
-  messages.push({ role: 'user', content })
-
   const tryModel = async (withImage) => {
-    const msgContent = withImage ? content : [{ type: 'text', text: userMsg }]
+    const msgContent = []
+    if (withImage && imageBase64) {
+      msgContent.push({
+        type: 'image_url',
+        image_url: { url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}` }
+      })
+    }
+    msgContent.push({ type: 'text', text: userMsg })
+
     const msgs = []
     if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt })
     msgs.push({ role: 'user', content: msgContent })
@@ -52,8 +47,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         messages: msgs,
-        max_tokens: 1500,
-        temperature: 0.2,
+        max_tokens: 2048,
+        temperature: 0.1,
       })
     })
 
@@ -73,11 +68,46 @@ export default async function handler(req, res) {
     return text
   }
 
+  // Fix truncated JSON — close any open strings/arrays/objects
+  const fixJson = (str) => {
+    try { JSON.parse(str); return str } catch {}
+    let fixed = str
+    // Count unclosed braces/brackets
+    let openBraces = 0, openBrackets = 0, inString = false, escape = false
+    for (const ch of fixed) {
+      if (escape) { escape = false; continue }
+      if (ch === '\\' && inString) { escape = true; continue }
+      if (ch === '"') { inString = !inString; continue }
+      if (!inString) {
+        if (ch === '{') openBraces++
+        else if (ch === '}') openBraces--
+        else if (ch === '[') openBrackets++
+        else if (ch === ']') openBrackets--
+      }
+    }
+    // Close open string
+    if (inString) fixed += '"'
+    // Close open arrays and objects
+    fixed += ']'.repeat(Math.max(0, openBrackets))
+    fixed += '}'.repeat(Math.max(0, openBraces))
+    try { JSON.parse(fixed); return fixed } catch { return null }
+  }
+
   try {
     let text = await tryModel(true)
     if (!text.trim() && imageBase64) text = await tryModel(false)
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    return res.status(200).json({ text: jsonMatch ? jsonMatch[0] : text })
+
+    // Extract JSON block
+    const jsonMatch = text.match(/\{[\s\S]*/)
+    let jsonStr = jsonMatch ? jsonMatch[0] : text
+
+    // Try to fix truncated JSON
+    const fixed = fixJson(jsonStr)
+    if (!fixed) {
+      return res.status(200).json({ error: 'Не вдалось розпарсити відповідь. Спробуй ще раз.' })
+    }
+
+    return res.status(200).json({ text: fixed })
   } catch (err) {
     return res.status(500).json({ error: 'Error: ' + err.message })
   }
